@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚴 Bike Maintenance Dashboard</title>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #f8f9fa;
+        }
+
+        .App {
+            text-align: left;
+        }
+
+        .dashboard {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 400px;
+            padding: 20px;
+            background: #f5f5f5;
+            overflow-y: auto;
+            border-right: 1px solid #ddd;
+        }
+
+        .map-container {
+            flex: 1;
+            height: 100%;
+        }
+
+        .route-button {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+
+        .route-button:hover:not(:disabled) {
+            background: #0056b3;
+        }
+
+        .route-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .bike-list {
+            margin-top: 20px;
+        }
+
+        .bike-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .bike-item:hover {
+            border-color: #007bff;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        .bike-item.selected {
+            border-color: #007bff;
+            background: #e3f2fd;
+        }
+
+        .bike-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .bike-id {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .risk-badge {
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .bike-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        h2 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c66;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .status-message {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="App">
+        <div class="dashboard">
+            <div class="sidebar">
+                <h1>🚴 Bike Maintenance Dashboard</h1>
+                
+                <div id="statusMessage" class="status-message" style="display: none;">
+                    Loading...
+                </div>
+                
+                <button 
+                    id="routeButton"
+                    class="route-button"
+                    disabled
+                >
+                    🗺️ Plan Route (0 selected)
+                </button>
+                
+                <div class="bike-list">
+                    <h2>Maintenance Priority</h2>
+                    <div id="bikeListContainer">
+                        <div class="loading">Loading bike predictions...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- External Scripts -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.0/axios.min.js"></script>
+
+    <script>
+        // Configuration - Update these with your actual values
+        const API_BASE_URL = 'http://localhost:8000';
+        const MAPBOX_TOKEN = 'YOUR_MAPBOX_ACCESS_TOKEN_HERE'; // Replace with your Mapbox token
+        
+        class BikeMaintenanceDashboard {
+            constructor() {
+                this.bikes = [];
+                this.selectedBikes = new Set();
+                this.route = null;
+                this.map = null;
+                this.markers = [];
+                
+                this.init();
+            }
+            
+            async init() {
+                this.setupEventListeners();
+                await this.initializeMap();
+                await this.fetchPredictions();
+            }
+            
+            setupEventListeners() {
+                document.getElementById('routeButton').addEventListener('click', () => {
+                    this.planRoute();
+                });
+            }
+            
+            async initializeMap() {
+                if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'YOUR_MAPBOX_ACCESS_TOKEN_HERE') {
+                    document.getElementById('map').innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f8f9fa; color: #666; text-align: center; padding: 20px;">
+                            <div>
+                                <h3>Map Configuration Required</h3>
+                                <p>Please add your Mapbox access token to the JavaScript code.</p>
+                                <p>Get your token at <a href="https://www.mapbox.com/" target="_blank" style="color: #007bff;">mapbox.com</a></p>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                try {
+                    mapboxgl.accessToken = MAPBOX_TOKEN;
+                    
+                    this.map = new mapboxgl.Map({
+                        container: 'map',
+                        style: 'mapbox://styles/mapbox/streets-v11',
+                        center: [-74.006, 40.7128], // NYC coordinates
+                        zoom: 12
+                    });
+                    
+                    this.map.on('load', () => {
+                        console.log('Map loaded successfully');
+                    });
+                } catch (error) {
+                    console.error('Error initializing map:', error);
+                    this.showStatus('Map initialization failed', 'error');
+                }
+            }
+            
+            async fetchPredictions() {
+                this.showStatus('Loading bike predictions...', 'loading');
+                
+                try {
+                    const response = await axios.get(`${API_BASE_URL}/predictions`);
+                    
+                    if (response.data.error) {
+                        this.showStatus(response.data.error, 'error');
+                        return;
+                    }
+                    
+                    this.bikes = response.data;
+                    this.renderBikeList();
+                    this.renderMapMarkers();
+                    this.hideStatus();
+                    
+                    console.log(`Loaded ${this.bikes.length} bike predictions`);
+                } catch (error) {
+                    console.error('Error fetching predictions:', error);
+                    this.showStatus('Failed to load bike data. Make sure your backend is running on port 8000.', 'error');
+                }
+            }
+            
+            renderBikeList() {
+                const container = document.getElementById('bikeListContainer');
+                
+                if (this.bikes.length === 0) {
+                    container.innerHTML = '<div class="loading">No bike predictions available. Make sure the ML model is trained.</div>';
+                    return;
+                }
+                
+                container.innerHTML = this.bikes.map(bike => `
+                    <div 
+                        class="bike-item ${this.selectedBikes.has(bike.bike_id) ? 'selected' : ''}"
+                        data-bike-id="${bike.bike_id}"
+                    >
+                        <div class="bike-header">
+                            <span class="bike-id">Bike #${bike.bike_id}</span>
+                            <span 
+                                class="risk-badge"
+                                style="background-color: ${this.getRiskColor(bike.failure_probability)}"
+                            >
+                                ${(bike.failure_probability * 100).toFixed(1)}% risk
+                            </span>
+                        </div>
+                        <div class="bike-details">
+                            <span>${bike.total_km.toFixed(1)} km total</span>
+                            <span>${bike.days_since_last_service} days since service</span>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Add click listeners
+                container.querySelectorAll('.bike-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const bikeId = parseInt(item.dataset.bikeId);
+                        this.toggleSelection(bikeId);
+                    });
+                });
+            }
+            
+            renderMapMarkers() {
+                if (!this.map) return;
+                
+                // Clear existing markers
+                this.markers.forEach(marker => marker.remove());
+                this.markers = [];
+                
+                // Add markers for each bike
+                this.bikes.forEach((bike, index) => {
+                    // Generate mock coordinates around NYC for each bike
+                    const longitude = -74.006 + (bike.bike_id % 10) * 0.01;
+                    const latitude = 40.7128 + (Math.floor(bike.bike_id / 10) % 10) * 0.01;
+                    
+                    // Create marker element
+                    const el = document.createElement('div');
+                    el.className = 'marker';
+                    el.style.backgroundColor = this.getRiskColor(bike.failure_probability);
+                    el.style.width = '15px';
+                    el.style.height = '15px';
+                    el.style.borderRadius = '50%';
+                    el.style.border = '2px solid white';
+                    el.style.cursor = 'pointer';
+                    el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+                    
+                    if (this.selectedBikes.has(bike.bike_id)) {
+                        el.style.border = '3px solid #007bff';
+                        el.style.width = '18px';
+                        el.style.height = '18px';
+                    }
+                    
+                    // Add click handler
+                    el.addEventListener('click', () => {
+                        this.toggleSelection(bike.bike_id);
+                    });
+                    
+                    // Create popup
+                    const popup = new mapboxgl.Popup({ offset: 25 })
+                        .setHTML(`
+                            <div style="padding: 8px;">
+                                <strong>Bike #${bike.bike_id}</strong><br>
+                                <span style="color: ${this.getRiskColor(bike.failure_probability)}">
+                                    ${(bike.failure_probability * 100).toFixed(1)}% failure risk
+                                </span><br>
+                                ${bike.total_km.toFixed(1)} km total<br>
+                                ${bike.days_since_last_service} days since service
+                            </div>
+                        `);
+                    
+                    const marker = new mapboxgl.Marker(el)
+                        .setLngLat([longitude, latitude])
+                        .setPopup(popup)
+                        .addTo(this.map);
+                        
+                    this.markers.push(marker);
+                });
+            }
+            
+            toggleSelection(bikeId) {
+                if (this.selectedBikes.has(bikeId)) {
+                    this.selectedBikes.delete(bikeId);
+                } else {
+                    this.selectedBikes.add(bikeId);
+                }
+                
+                this.updateUI();
+            }
+            
+            updateUI() {
+                // Update button
+                const button = document.getElementById('routeButton');
+                button.textContent = `🗺️ Plan Route (${this.selectedBikes.size} selected)`;
+                button.disabled = this.selectedBikes.size === 0;
+                
+                // Re-render bike list and markers
+                this.renderBikeList();
+                if (this.map) {
+                    this.renderMapMarkers();
+                }
+            }
+            
+            async planRoute() {
+                if (this.selectedBikes.size === 0) return;
+                
+                this.showStatus('Planning optimal route...', 'loading');
+                
+                try {
+                    const selectedBikeIds = Array.from(this.selectedBikes);
+                    const response = await axios.post(`${API_BASE_URL}/plan_route`, selectedBikeIds);
+                    
+                    if (response.data && this.map) {
+                        this.addRouteToMap(response.data);
+                        this.showStatus(`Route planned for ${selectedBikeIds.length} bikes`, 'success');
+                        setTimeout(() => this.hideStatus(), 3000);
+                    } else {
+                        this.showStatus('Route planning failed', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error planning route:', error);
+                    this.showStatus('Route planning failed. Check if Mapbox token is configured in backend.', 'error');
+                }
+            }
+            
+            addRouteToMap(routeGeometry) {
+                if (!this.map) return;
+                
+                // Remove existing route
+                if (this.map.getSource('route')) {
+                    this.map.removeLayer('route');
+                    this.map.removeSource('route');
+                }
+                
+                // Add new route
+                this.map.addSource('route', {
+                    type: 'geojson',
+                    data: {
+                        type: 'Feature',
+                        properties: {},
+                        geometry: routeGeometry
+                    }
+                });
+                
+                this.map.addLayer({
+                    id: 'route',
+                    type: 'line',
+                    source: 'route',
+                    layout: {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    paint: {
+                        'line-color': '#007cbf',
+                        'line-width': 4
+                    }
+                });
+                
+                // Fit map to show the route
+                const coordinates = routeGeometry.coordinates;
+                const bounds = coordinates.reduce((bounds, coord) => {
+                    return bounds.extend(coord);
+                }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+                
+                this.map.fitBounds(bounds, { padding: 50 });
+            }
+            
+            getRiskColor(probability) {
+                if (probability > 0.7) return '#dc2626'; // red
+                if (probability > 0.4) return '#ea580c'; // orange  
+                if (probability > 0.2) return '#ca8a04'; // yellow
+                return '#16a34a'; // green
+            }
+            
+            showStatus(message, type = 'loading') {
+                const statusEl = document.getElementById('statusMessage');
+                statusEl.textContent = message;
+                statusEl.className = `status-message ${type}`;
+                statusEl.style.display = 'block';
+                
+                if (type === 'error') {
+                    statusEl.style.background = '#fee';
+                    statusEl.style.borderColor = '#fcc';
+                    statusEl.style.color = '#c66';
+                } else if (type === 'success') {
+                    statusEl.style.background = '#d4edda';
+                    statusEl.style.borderColor = '#c3e6cb';
+                    statusEl.style.color = '#155724';
+                } else {
+                    statusEl.style.background = '#fff3cd';
+                    statusEl.style.borderColor = '#ffeaa7';
+                    statusEl.style.color = '#856404';
+                }
+            }
+            
+            hideStatus() {
+                const statusEl = document.getElementById('statusMessage');
+                statusEl.style.display = 'none';
+            }
+        }
+        
+        // Initialize the dashboard when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new BikeMaintenanceDashboard();
+        });
+    </script>
+</body>
+</html>
