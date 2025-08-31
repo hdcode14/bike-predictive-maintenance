@@ -1,185 +1,281 @@
-# backend/main.py
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-import pandas as pd
-from datetime import datetime, timedelta
-import joblib
-import os
-from dotenv import load_dotenv
-import requests
-import numpy as np
-import random
-
-from database import get_db, engine
+from typing import List, Dict, Any
+from datetime import datetime, date
 import models
+from database import engine, get_db, test_db_connection
+import json
 
-load_dotenv()
+# Create database tables
+models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Bike Predictive Maintenance API")
+app = FastAPI()
 
-# Add CORS middleware
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React app's URL
+    allow_origins=["http://localhost:3000", "http://localhost:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Pydantic models for request/response
-from pydantic import BaseModel
-from typing import List, Optional
-
-class RideData(BaseModel):
-    bike_id: int
-    start_time: datetime
-    end_time: datetime
-    start_lat: float
-    start_lon: float
-    end_lat: float
-    end_lon: float
-    distance_km: float
-    avg_vibration: float
-    weather_condition: str
-
-class BikePrediction(BaseModel):
-    bike_id: int
-    failure_probability: float
-    total_km: float
-    days_since_last_service: int
-
 @app.get("/")
 def read_root():
     return {"message": "Bike Predictive Maintenance API"}
 
-@app.post("/rides")
-def add_ride(ride: RideData, db: Session = Depends(get_db)):
+@app.get("/health")
+def health_check(db: Session = Depends(get_db)):
+    """Health check endpoint with database verification"""
     try:
-        # Create new ride
-        db_ride = models.Ride(**ride.dict())
-        db.add(db_ride)
-        db.commit()
-        db.refresh(db_ride)
-        
-        # Update bike's total distance
-        bike = db.query(models.Bike).filter(models.Bike.bike_id == ride.bike_id).first()
-        if bike:
-            bike.total_distance_km += ride.distance_km
-            db.commit()
-        
-        return {"message": "Ride logged successfully", "ride_id": db_ride.ride_id}
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
     except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
-@app.get("/bikes")
+@app.get("/bikes", response_model=List[Dict[str, Any]])
 def get_bikes(db: Session = Depends(get_db)):
-    bikes = db.query(models.Bike).all()
-    return bikes
-
-@app.get("/predictions")
-def get_predictions(db: Session = Depends(get_db)):
+    """Get all bikes data"""
     try:
-        # Load trained model
-        try:
-            model = joblib.load('prod_model/xgboost_model.joblib')
-        except:
-            return {"error": "Model not trained yet. Please train the model first."}
+        bikes = db.query(models.Bike).all()
+        return [
+            {
+                "bike_id": bike.bike_id,
+                "status": bike.status,
+                "purchased_date": bike.purchased_date.isoformat() if bike.purchased_date else None,
+                "last_serviced_date": bike.last_serviced_date.isoformat() if bike.last_serviced_date else None,
+                "total_distance_km": bike.total_distance_km,
+                "created_at": bike.created_at.isoformat() if bike.created_at else None
+            }
+            for bike in bikes
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching bikes: {str(e)}")
+
+@app.get("/rides", response_model=List[Dict[str, Any]])
+def get_rides(db: Session = Depends(get_db)):
+    """Get all rides data"""
+    try:
+        rides = db.query(models.Ride).all()
+        return [
+            {
+                "ride_id": ride.ride_id,
+                "bike_id": ride.bike_id,
+                "start_time": ride.start_time.isoformat() if ride.start_time else None,
+                "end_time": ride.end_time.isoformat() if ride.end_time else None,
+                "distance_km": ride.distance_km,
+                "avg_vibration": ride.avg_vibration,
+                "weather_condition": ride.weather_condition,
+                "created_at": ride.created_at.isoformat() if ride.created_at else None
+            }
+            for ride in rides
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching rides: {str(e)}")
+
+@app.get("/maintenance", response_model=List[Dict[str, Any]])
+def get_maintenance_records(db: Session = Depends(get_db)):
+    """Get all maintenance records"""
+    try:
+        records = db.query(models.MaintenanceRecord).all()
+        return [
+            {
+                "record_id": record.record_id,
+                "bike_id": record.bike_id,
+                "maintenance_date": record.maintenance_date.isoformat() if record.maintenance_date else None,
+                "component": record.component,
+                "action": record.action,
+                "associated_ride_id": record.associated_ride_id,
+                "created_at": record.created_at.isoformat() if record.created_at else None
+            }
+            for record in records
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching maintenance records: {str(e)}")
+
+@app.get("/predictions", response_model=List[Dict[str, Any]])
+def get_predictions(db: Session = Depends(get_db)):
+    """Get maintenance predictions based on ride data and maintenance history"""
+    try:
+        # Get all bikes with their rides and maintenance history
+        bikes = db.query(models.Bike).all()
         
-        # Calculate features for prediction
-        query = """
-        SELECT 
-            b.bike_id,
-            b.total_distance_km as total_km,
-            COALESCE((
-                SELECT SUM(distance_km) 
-                FROM rides r 
-                WHERE r.bike_id = b.bike_id 
-                AND r.end_time > COALESCE((SELECT MAX(maintenance_date) 
-                                        FROM maintenance_records 
-                                        WHERE bike_id = b.bike_id), '2000-01-01')
-            ), b.total_distance_km) as km_since_service,
-            COALESCE(EXTRACT(DAY FROM NOW() - MAX(m.maintenance_date)), 999) as days_since_service,
-            COALESCE((
-                SELECT AVG(avg_vibration) 
-                FROM (
-                    SELECT avg_vibration 
-                    FROM rides 
-                    WHERE bike_id = b.bike_id 
-                    ORDER BY end_time DESC 
-                    LIMIT 10
-                ) as recent_rides
-            ), 0) as avg_vibration_last_10
-        FROM bikes b
-        LEFT JOIN maintenance_records m ON b.bike_id = m.bike_id
-        WHERE b.status = 'active'
-        GROUP BY b.bike_id
-        """
+        if not bikes:
+            return []  # Return empty list instead of error if no bikes
         
-        features_df = pd.read_sql_query(query, engine)
-        
-        if features_df.empty:
-            return []
-        
-        # Prepare features for prediction (same order as training)
-        X = features_df[['total_km', 'km_since_service', 'days_since_service', 'avg_vibration_last_10']]
-        X.fillna(0, inplace=True)
-        
-        # Predict probabilities
-        probabilities = model.predict_proba(X)[:, 1]  # Probability of class 1 (failure)
-        
-        # Prepare response
         predictions = []
-        for i, row in features_df.iterrows():
-            predictions.append({
-                "bike_id": int(row['bike_id']),
-                "failure_probability": float(probabilities[i]),
-                "total_km": float(row['total_km']),
-                "days_since_last_service": int(row['days_since_service'] or 999)
-            })
         
-        # Sort by failure probability (highest first)
-        predictions.sort(key=lambda x: x['failure_probability'], reverse=True)
+        for bike in bikes:
+            # Get recent rides for this bike
+            recent_rides = db.query(models.Ride).filter(
+                models.Ride.bike_id == bike.bike_id
+            ).order_by(models.Ride.start_time.desc()).limit(10).all()
+            
+            # Calculate prediction metrics with safe defaults
+            total_vibration = 0
+            vibration_count = 0
+            recent_distance = 0
+            
+            for ride in recent_rides:
+                if ride.avg_vibration is not None:
+                    total_vibration += ride.avg_vibration
+                    vibration_count += 1
+                if ride.distance_km is not None:
+                    recent_distance += ride.distance_km
+            
+            avg_vibration = total_vibration / vibration_count if vibration_count > 0 else 0
+            
+            # Safe access to bike attributes
+            total_distance = bike.total_distance_km or 0
+            bike_status = bike.status or "active"
+            
+            # Enhanced prediction logic
+            issues = []
+            confidence = 0.5
+            
+            if avg_vibration > 0.8:
+                priority = "high"
+                issues.extend(["suspension issues", "wheel alignment"])
+                confidence = max(confidence, 0.9)
+            elif avg_vibration > 0.5:
+                priority = "medium"
+                issues.extend(["tire pressure", "general checkup"])
+                confidence = max(confidence, 0.7)
+            
+            if total_distance > 2000:
+                priority = "high"
+                issues.extend(["chain wear", "brake pads", "bearing replacement"])
+                confidence = max(confidence, 0.85)
+            elif total_distance > 1000:
+                priority = "medium" if priority != "high" else "high"
+                issues.extend(["chain lubrication", "brake adjustment"])
+                confidence = max(confidence, 0.65)
+            
+            # If no specific issues found, recommend routine maintenance
+            if not issues:
+                priority = "low"
+                issues = ["routine maintenance"]
+                confidence = 0.5
+            
+            # Remove duplicates
+            issues = list(set(issues))
+            
+            # Safe date formatting
+            last_service = None
+            if bike.last_serviced_date:
+                if isinstance(bike.last_serviced_date, str):
+                    last_service = bike.last_serviced_date
+                else:
+                    last_service = bike.last_serviced_date.isoformat()
+            
+            prediction = {
+                "bike_id": bike.bike_id,
+                "bike_status": bike_status,
+                "total_distance_km": total_distance,
+                "recent_distance_km": recent_distance,
+                "avg_vibration": round(avg_vibration, 2),
+                "maintenance_priority": priority,
+                "predicted_issues": issues,
+                "confidence_score": round(confidence, 2),
+                "recommended_maintenance": f"Check {', '.join(issues)}",
+                "last_service": last_service or "Never",
+                "recent_rides_count": len(recent_rides)
+            }
+            predictions.append(prediction)
+        
         return predictions
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Prediction error: {error_details}")  # Debug output
+        raise HTTPException(status_code=500, detail=f"Error generating predictions: {str(e)}")
+    
 
-@app.post("/plan_route")
-def plan_route(bike_ids: List[int]):
+@app.get("/test-data")
+def create_test_data(db: Session = Depends(get_db)):
+    """Create test data for development"""
     try:
-        MAPBOX_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN")
-        if not MAPBOX_TOKEN:
-            raise HTTPException(status_code=500, detail="Mapbox token not configured")
+        # Clear existing data
+        db.query(models.MaintenanceRecord).delete()
+        db.query(models.Ride).delete()
+        db.query(models.Bike).delete()
+        db.commit()
         
-        # Get locations for selected bikes (using mock data for now)
-        locations = []
-        for bike_id in bike_ids:
-            # In a real scenario, you'd query the database for the last known location
-            mock_lat = 40.7128 + (random.random() - 0.5) * 0.1
-            mock_lon = -74.0060 + (random.random() - 0.5) * 0.1
-            locations.append(f"{mock_lon},{mock_lat}")
+        # Add test bikes
+        test_bikes = [
+            models.Bike(
+                bike_id=1,
+                status="active",
+                purchased_date=date(2023, 1, 15),
+                last_serviced_date=date(2023, 10, 15),
+                total_distance_km=1250.5
+            ),
+            models.Bike(
+                bike_id=2,
+                status="active",
+                purchased_date=date(2023, 3, 20),
+                last_serviced_date=date(2023, 11, 20),
+                total_distance_km=850.2
+            ),
+            models.Bike(
+                bike_id=3,
+                status="maintenance",
+                purchased_date=date(2022, 8, 10),
+                last_serviced_date=date(2023, 9, 5),
+                total_distance_km=2300.8
+            ),
+        ]
         
-        if len(locations) < 2:
-            return {"geometry": None}
+        db.add_all(test_bikes)
+        db.commit()
         
-        # Call Mapbox Directions API
-        coordinates = ";".join(locations)
-        url = f"https://api.mapbox.com/directions/v5/mapbox/driving/{coordinates}?geometries=geojson&access_token={MAPBOX_TOKEN}"
+        # Add test rides
+        test_rides = [
+            models.Ride(
+                bike_id=1,
+                start_time=datetime(2023, 12, 1, 8, 0, 0),
+                end_time=datetime(2023, 12, 1, 9, 30, 0),
+                distance_km=25.5,
+                avg_vibration=0.7,
+                weather_condition="sunny"
+            ),
+            models.Ride(
+                bike_id=2,
+                start_time=datetime(2023, 12, 1, 10, 0, 0),
+                end_time=datetime(2023, 12, 1, 11, 15, 0),
+                distance_km=18.2,
+                avg_vibration=0.4,
+                weather_condition="cloudy"
+            ),
+            models.Ride(
+                bike_id=3,
+                start_time=datetime(2023, 11, 30, 14, 0, 0),
+                end_time=datetime(2023, 11, 30, 16, 0, 0),
+                distance_km=35.8,
+                avg_vibration=0.9,
+                weather_condition="rainy"
+            ),
+        ]
         
-        response = requests.get(url)
-        data = response.json()
+        db.add_all(test_rides)
+        db.commit()
         
-        if response.status_code != 200 or 'routes' not in data:
-            raise HTTPException(status_code=500, detail="Failed to get route from Mapbox")
-        
-        return data['routes'][0]['geometry']
+        return {
+            "message": "Test data created successfully",
+            "bikes_added": len(test_bikes),
+            "rides_added": len(test_rides)
+        }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating test data: {str(e)}")
 
 if __name__ == "__main__":
+    # Test database connection
+    test_db_connection()
+    
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

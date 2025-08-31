@@ -1,4 +1,3 @@
-# scripts/generate_data.py
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -42,6 +41,9 @@ def generate_synthetic_data():
         last_maintenance_date = current_date - timedelta(days=random.randint(10, 30))
         total_km = 0
         
+        # Only 70% of bikes will have failures (more realistic)
+        bike_will_have_failures = random.random() < 0.7
+        
         while current_date <= datetime.now():
             # 0-4 rides per day
             num_rides = random.randint(0, 4)
@@ -68,8 +70,8 @@ def generate_synthetic_data():
                 all_rides.append(ride_data)
                 total_km += distance
                 
-                # Simulate maintenance need after hard rides
-                if is_hard_ride and (datetime.now() - last_maintenance_date).days > 7:
+                # Only simulate maintenance for bikes that will have failures
+                if bike_will_have_failures and is_hard_ride and (datetime.now() - last_maintenance_date).days > 7:
                     fail_component = random.choice(['brake', 'chain', 'tire'])
                     failure_date = current_date + timedelta(days=random.randint(5, 14))
                     if failure_date <= datetime.now():
@@ -93,7 +95,9 @@ def generate_synthetic_data():
     if all_maintenance:
         maint_df = pd.DataFrame(all_maintenance)
         maint_df.to_sql('maintenance_records', engine, if_exists='append', index=False)
-        print(f"Generated {len(all_maintenance)} maintenance records")
+        print(f"Generated {len(all_maintenance)} maintenance records for {len(set([m['bike_id'] for m in all_maintenance]))} bikes")
+    else:
+        print("No maintenance records generated")
     
     # Update total distance for each bike
     with engine.connect() as conn:
@@ -104,6 +108,8 @@ def generate_synthetic_data():
         conn.commit()
     
     print("Synthetic data generation complete!")
+    print(f"Bikes with failures: {len(set([m['bike_id'] for m in all_maintenance])) if all_maintenance else 0}")
+    print(f"Bikes without failures: {100 - (len(set([m['bike_id'] for m in all_maintenance])) if all_maintenance else 0)}")
 
 if __name__ == "__main__":
     generate_synthetic_data()

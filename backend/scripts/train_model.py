@@ -1,4 +1,3 @@
-# scripts/train_model.py
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sklearn.model_selection import train_test_split
@@ -13,7 +12,7 @@ load_dotenv()
 def train_model():
     engine = create_engine(os.getenv("DATABASE_URL"))
     
-    # Query to get features and labels
+    # SQLite-compatible query with 30-day window instead of 90
     query = """
     SELECT 
         b.bike_id,
@@ -26,7 +25,7 @@ def train_model():
                                     FROM maintenance_records 
                                     WHERE bike_id = b.bike_id AND action = 'replaced'), '2000-01-01')
         ), b.total_distance_km) as km_since_service,
-        COALESCE(EXTRACT(DAY FROM NOW() - MAX(m.maintenance_date)), 999) as days_since_service,
+        COALESCE(julianday('now') - julianday(MAX(m.maintenance_date)), 999) as days_since_service,
         COALESCE((
             SELECT AVG(avg_vibration) 
             FROM (
@@ -41,7 +40,7 @@ def train_model():
             WHEN EXISTS (
                 SELECT 1 FROM maintenance_records mr 
                 WHERE mr.bike_id = b.bike_id 
-                AND mr.maintenance_date BETWEEN NOW() - INTERVAL '90 days' AND NOW()
+                AND mr.maintenance_date BETWEEN date('now', '-30 days') AND date('now')
                 AND mr.action = 'replaced'
             ) THEN 1 
             ELSE 0 
@@ -55,6 +54,16 @@ def train_model():
     
     if df.empty:
         print("No data available for training")
+        return
+    
+    # Check class distribution
+    print("Class distribution:")
+    print(df['had_failure'].value_counts())
+    
+    # If only one class exists, we can't train a proper model
+    if len(df['had_failure'].unique()) < 2:
+        print("Warning: Only one class found in target variable. Cannot train classification model.")
+        print("This usually means all bikes had failures or no bikes had failures in the training period.")
         return
     
     # Prepare features and target
