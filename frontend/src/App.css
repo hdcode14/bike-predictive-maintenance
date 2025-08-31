@@ -1,100 +1,137 @@
 /* frontend/src/App.css */
 .App {
   text-align: left;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  min-height: 100vh;
+  color: #eaeaea;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* Layout */
 .dashboard {
   display: flex;
   height: 100vh;
+  backdrop-filter: blur(10px);
 }
 
+/* Sidebar */
 .sidebar {
-  width: 400px;
-  padding: 20px;
-  background: #f5f5f5;
+  width: 380px;
+  padding: 25px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
   overflow-y: auto;
-  border-right: 1px solid #ddd;
+  border-radius: 0 20px 20px 0;
 }
 
+/* Map */
 .map-container {
   flex: 1;
   height: 100%;
 }
 
+/* Route Button */
 .route-button {
   width: 100%;
-  padding: 12px;
-  background: #007bff;
-  color: white;
+  padding: 14px;
+  background: linear-gradient(90deg, #00c6ff, #0072ff);
+  color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: 12px;
   cursor: pointer;
-  margin-bottom: 20px;
+  margin-bottom: 25px;
   font-size: 16px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(0, 114, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+.route-button:hover {
+  background: linear-gradient(90deg, #0072ff, #00c6ff);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 114, 255, 0.6);
 }
 
 .route-button:disabled {
-  background: #ccc;
+  background: #444;
   cursor: not-allowed;
 }
 
+/* Bike List */
 .bike-list {
   margin-top: 20px;
 }
 
 .bike-item {
-  padding: 15px;
-  margin-bottom: 10px;
-  background: white;
-  border-radius: 8px;
-  border: 2px solid #ddd;
+  padding: 16px;
+  margin-bottom: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .bike-item:hover {
-  border-color: #007bff;
+  border-color: #00c6ff;
+  transform: scale(1.02);
 }
 
 .bike-item.selected {
-  border-color: #007bff;
-  background: #e3f2fd;
+  border-color: #00c6ff;
+  background: rgba(0, 198, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 198, 255, 0.3);
 }
 
+/* Bike Header */
 .bike-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .bike-id {
   font-weight: bold;
-  font-size: 16px;
+  font-size: 17px;
+  color: #fff;
+  text-shadow: 0 0 4px rgba(0, 198, 255, 0.8);
 }
 
+/* Risk Badge */
 .risk-badge {
-  color: white;
-  padding: 4px 8px;
-  border-radius: 12px;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 14px;
   font-size: 12px;
   font-weight: bold;
+  box-shadow: 0 0 10px rgba(0, 198, 255, 0.6);
 }
 
+/* Bike Details */
 .bike-details {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: #666;
+  font-size: 13px;
+  color: #ccc;
 }
 
+/* Headings */
 h1 {
-  color: #333;
-  margin-bottom: 20px;
+  color: #fff;
+  margin-bottom: 22px;
+  font-size: 24px;
+  text-shadow: 0 0 8px rgba(0, 198, 255, 0.6);
 }
 
 h2 {
-  color: #555;
+  color: #eaeaea;
   margin-bottom: 15px;
   font-size: 18px;
+  font-weight: 600;
+  text-shadow: 0 0 6px rgba(0, 198, 255, 0.4);
 }
