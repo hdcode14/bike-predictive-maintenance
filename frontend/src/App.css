@@ -1,4 +1,10 @@
 /* frontend/src/App.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 .App {
   text-align: left;
   background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
@@ -7,16 +13,21 @@
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Layout */
+/* Layout - FIXED */
 .dashboard {
   display: flex;
   height: 100vh;
+  width: 100vw;
   backdrop-filter: blur(10px);
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 
 /* Sidebar */
 .sidebar {
   width: 380px;
+  min-width: 380px;
   padding: 25px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(12px);
@@ -24,12 +35,36 @@
   box-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
   overflow-y: auto;
   border-radius: 0 20px 20px 0;
+  z-index: 10;
 }
 
-/* Map */
+/* Map Container - CRITICAL FIXES */
 .map-container {
   flex: 1;
-  height: 100%;
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}
+
+/* Force Mapbox to fill container */
+.map-container .mapboxgl-map {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.mapboxgl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Mapbox container div */
+.map-container > div {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
 }
 
 /* Route Button */
@@ -58,6 +93,8 @@
 .route-button:disabled {
   background: #444;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* Bike List */
@@ -115,9 +152,14 @@
 /* Bike Details */
 .bike-details {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 4px;
   font-size: 13px;
   color: #ccc;
+}
+
+.bike-details span {
+  display: block;
 }
 
 /* Headings */
@@ -134,4 +176,109 @@ h2 {
   font-size: 18px;
   font-weight: 600;
   text-shadow: 0 0 6px rgba(0, 198, 255, 0.4);
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+}
+
+/* Error banner */
+.error-banner {
+  background: rgba(255, 0, 0, 0.2);
+  border: 1px solid rgba(255, 0, 0, 0.4);
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  color: #ff6b6b;
+  text-align: center;
+}
+
+/* Custom marker styles */
+.custom-marker {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.custom-marker:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 15px rgba(0, 198, 255, 0.8);
+}
+
+.custom-marker.selected {
+  border: 3px solid #00ff00;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.8);
+}
+
+/* Add to your existing App.css */
+.map-error {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  background: rgba(255, 0, 0, 0.1);
+  border: 2px dashed #ff4444;
+  padding: 20px;
+  text-align: center;
+}
+
+.map-error h3 {
+  color: #ff4444;
+  margin-bottom: 10px;
+}
+
+.map-error p {
+  color: #ff8888;
+  margin: 5px 0;
+}
+
+/* Ensure map container has proper dimensions */
+.map-container {
+  flex: 1;
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.map-container > div {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Force Mapbox styles */
+.mapboxgl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+}
+
+/* Custom marker styles */
+.custom-marker {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.custom-marker:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 15px rgba(0, 198, 255, 0.8);
 }

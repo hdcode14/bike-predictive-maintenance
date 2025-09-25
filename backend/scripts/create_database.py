@@ -8,7 +8,7 @@ def create_tables():
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./bike_maintenance.db")
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
     
-    # SQLite-compatible SQL statements
+
     sql_statements = [
         "DROP TABLE IF EXISTS maintenance_records;",
         "DROP TABLE IF EXISTS rides;", 

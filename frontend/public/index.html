@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚴 Bike Maintenance Dashboard</title>
+    <title>Bike Maintenance Dashboard</title>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
     <style>
         * {
@@ -37,6 +37,7 @@
         .map-container {
             flex: 1;
             height: 100%;
+            position: relative;
         }
 
         .route-button {
@@ -112,6 +113,32 @@
             justify-content: space-between;
             font-size: 12px;
             color: #666;
+            margin-bottom: 5px;
+        }
+
+        .component-risks {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+
+        .component-risk {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        .risk-bar {
+            height: 6px;
+            border-radius: 3px;
+            margin-top: 2px;
+            background: #eee;
+        }
+
+        .risk-fill {
+            height: 100%;
+            border-radius: 3px;
         }
 
         h1 {
@@ -150,16 +177,162 @@
             margin-bottom: 20px;
             font-size: 14px;
         }
+        
+        .route-info-card {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            z-index: 1;
+            max-width: 300px;
+            display: none;
+            border-left: 5px solid #007bff;
+        }
+        
+        .route-info-card h3 {
+            margin-bottom: 15px;
+            font-size: 16px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+        
+        .route-info-card p {
+            margin: 10px 0;
+            font-size: 14px;
+            color: #555;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .route-info-card .label {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .route-info-card .value {
+            text-align: right;
+        }
+        
+        .route-high-risk {
+            color: #dc2626;
+            font-weight: 600;
+        }
+        
+        /* New styles for enhanced dashboard */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .stats-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            flex: 1;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .high-risk {
+            color: #dc2626;
+        }
+        
+        .medium-risk {
+            color: #ea580c;
+        }
+        
+        .low-risk {
+            color: #16a34a;
+        }
+        
+        .filter-controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .filter-select {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .clear-route {
+            background: #6c757d;
+            margin-left: 10px;
+        }
+        
+        .clear-route:hover {
+            background: #5a6268;
+        }
     </style>
 </head>
 <body>
     <div class="App">
         <div class="dashboard">
             <div class="sidebar">
-                <h1>🚴 Bike Maintenance Dashboard</h1>
+                <div class="dashboard-header">
+                    <h1>🚴 Bike Maintenance Dashboard</h1>
+                </div>
+                
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalBikes">10</div>
+                        <div class="stat-label">Total Bikes</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value high-risk" id="highRiskBikes">4</div>
+                        <div class="stat-label">High Risk</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value medium-risk" id="mediumRiskBikes">3</div>
+                        <div class="stat-label">Medium Risk</div>
+                    </div>
+                </div>
                 
                 <div id="statusMessage" class="status-message" style="display: none;">
                     Loading...
+                </div>
+                
+                <div class="filter-controls">
+                    <select id="riskFilter" class="filter-select">
+                        <option value="all">All Risk Levels</option>
+                        <option value="high">High Risk Only</option>
+                        <option value="medium">Medium Risk Only</option>
+                        <option value="low">Low Risk Only</option>
+                    </select>
+                    <select id="modelFilter" class="filter-select">
+                        <option value="all">All Models</option>
+                        <option value="Mountain">Mountain</option>
+                        <option value="Road">Road</option>
+                        <option value="Hybrid">Hybrid</option>
+                        <option value="City">City</option>
+                    </select>
                 </div>
                 
                 <button 
@@ -168,6 +341,13 @@
                     disabled
                 >
                     🗺️ Plan Route (0 selected)
+                </button>
+                <button 
+                    id="clearRouteButton"
+                    class="route-button clear-route"
+                    style="display: none;"
+                >
+                    ❌ Clear Route
                 </button>
                 
                 <div class="bike-list">
@@ -180,6 +360,13 @@
 
             <div class="map-container">
                 <div id="map"></div>
+                <div id="routeInfo" class="route-info-card">
+                    <h3>Route Information</h3>
+                    <p><span class="label">Distance:</span> <span id="routeDistance" class="value">Calculating...</span></p>
+                    <p><span class="label">Estimated Time:</span> <span id="routeTime" class="value">Calculating...</span></p>
+                    <p><span class="label">Bikes on route:</span> <span id="routeBikes" class="value">0</span></p>
+                    <p><span class="label">High risk bikes:</span> <span id="routeHighRisk" class="value route-high-risk">0</span></p>
+                </div>
             </div>
         </div>
     </div>
@@ -189,17 +376,165 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.0/axios.min.js"></script>
 
     <script>
-        // Configuration - Update these with your actual values
-        const API_BASE_URL = 'http://localhost:8000';
-        const MAPBOX_TOKEN = 'YOUR_MAPBOX_ACCESS_TOKEN_HERE'; // Replace with your Mapbox token
+        // Configuration
+        const MAPBOX_TOKEN = 'pk.eyJ1IjoiaHJpc2loZCIsImEiOiJjbWV5OHV5aGsxZzJrMnJvYXV2NjIzM2FmIn0.EkiCK9FTrUSSYgISQY41Vg';
+        
+        // Demo bike data with realistic failure probabilities and component risks
+        const DEMO_BIKES = [
+            { 
+                bike_id: 101, 
+                failure_probability: 0.85, 
+                total_km: 2450, 
+                days_since_last_service: 180, 
+                lat: 40.712, lng: -74.008, 
+                last_service: "2023-08-10", 
+                model: "Mountain",
+                component_risks: {
+                    tire: 0.92,
+                    brake: 0.78,
+                    chain: 0.85
+                }
+            },
+            { 
+                bike_id: 102, 
+                failure_probability: 0.42, 
+                total_km: 1200, 
+                days_since_last_service: 90, 
+                lat: 40.714, lng: -74.012, 
+                last_service: "2023-11-10", 
+                model: "Hybrid",
+                component_risks: {
+                    tire: 0.35,
+                    brake: 0.48,
+                    chain: 0.40
+                }
+            },
+            { 
+                bike_id: 103, 
+                failure_probability: 0.15, 
+                total_km: 600, 
+                days_since_last_service: 45, 
+                lat: 40.718, lng: -74.005, 
+                last_service: "2024-01-15", 
+                model: "Road",
+                component_risks: {
+                    tire: 0.10,
+                    brake: 0.18,
+                    chain: 0.12
+                }
+            },
+            { 
+                bike_id: 104, 
+                failure_probability: 0.72, 
+                total_km: 3100, 
+                days_since_last_service: 210, 
+                lat: 40.709, lng: -74.002, 
+                last_service: "2023-07-01", 
+                model: "Mountain",
+                component_risks: {
+                    tire: 0.68,
+                    brake: 0.75,
+                    chain: 0.80
+                }
+            },
+            { 
+                bike_id: 105, 
+                failure_probability: 0.33, 
+                total_km: 950, 
+                days_since_last_service: 60, 
+                lat: 40.721, lng: -74.010, 
+                last_service: "2023-12-20", 
+                model: "City",
+                component_risks: {
+                    tire: 0.25,
+                    brake: 0.40,
+                    chain: 0.30
+                }
+            },
+            { 
+                bike_id: 106, 
+                failure_probability: 0.91, 
+                total_km: 4200, 
+                days_since_last_service: 300, 
+                lat: 40.705, lng: -74.015, 
+                last_service: "2023-04-01", 
+                model: "Road",
+                component_risks: {
+                    tire: 0.95,
+                    brake: 0.88,
+                    chain: 0.92
+                }
+            },
+            { 
+                bike_id: 107, 
+                failure_probability: 0.25, 
+                total_km: 800, 
+                days_since_last_service: 50, 
+                lat: 40.716, lng: -74.018, 
+                last_service: "2024-01-05", 
+                model: "Hybrid",
+                component_risks: {
+                    tire: 0.20,
+                    brake: 0.30,
+                    chain: 0.22
+                }
+            },
+            { 
+                bike_id: 108, 
+                failure_probability: 0.63, 
+                total_km: 2800, 
+                days_since_last_service: 150, 
+                lat: 40.710, lng: -74.022, 
+                last_service: "2023-09-01", 
+                model: "Mountain",
+                component_risks: {
+                    tire: 0.55,
+                    brake: 0.70,
+                    chain: 0.65
+                }
+            },
+            { 
+                bike_id: 109, 
+                failure_probability: 0.18, 
+                total_km: 700, 
+                days_since_last_service: 40, 
+                lat: 40.725, lng: -74.007, 
+                last_service: "2024-01-25", 
+                model: "City",
+                component_risks: {
+                    tire: 0.15,
+                    brake: 0.20,
+                    chain: 0.16
+                }
+            },
+            { 
+                bike_id: 110, 
+                failure_probability: 0.77, 
+                total_km: 3600, 
+                days_since_last_service: 240, 
+                lat: 40.703, lng: -74.009, 
+                last_service: "2023-06-15", 
+                model: "Road",
+                component_risks: {
+                    tire: 0.72,
+                    brake: 0.80,
+                    chain: 0.85
+                }
+            }
+        ];
         
         class BikeMaintenanceDashboard {
             constructor() {
                 this.bikes = [];
+                this.filteredBikes = [];
                 this.selectedBikes = new Set();
                 this.route = null;
                 this.map = null;
                 this.markers = [];
+                this.filters = {
+                    risk: 'all',
+                    model: 'all'
+                };
                 
                 this.init();
             }
@@ -207,12 +542,26 @@
             async init() {
                 this.setupEventListeners();
                 await this.initializeMap();
-                await this.fetchPredictions();
+                this.loadDemoData();
             }
             
             setupEventListeners() {
                 document.getElementById('routeButton').addEventListener('click', () => {
                     this.planRoute();
+                });
+                
+                document.getElementById('clearRouteButton').addEventListener('click', () => {
+                    this.clearRoute();
+                });
+                
+                document.getElementById('riskFilter').addEventListener('change', (e) => {
+                    this.filters.risk = e.target.value;
+                    this.applyFilters();
+                });
+                
+                document.getElementById('modelFilter').addEventListener('change', (e) => {
+                    this.filters.model = e.target.value;
+                    this.applyFilters();
                 });
             }
             
@@ -249,38 +598,70 @@
                 }
             }
             
-            async fetchPredictions() {
-                this.showStatus('Loading bike predictions...', 'loading');
+            loadDemoData() {
+                this.showStatus('Loading demo bike data...', 'loading');
                 
-                try {
-                    const response = await axios.get(`${API_BASE_URL}/predictions`);
-                    
-                    if (response.data.error) {
-                        this.showStatus(response.data.error, 'error');
-                        return;
-                    }
-                    
-                    this.bikes = response.data;
+                // Use demo data instead of API call
+                setTimeout(() => {
+                    this.bikes = DEMO_BIKES;
+                    this.filteredBikes = [...this.bikes];
+                    this.updateStats();
                     this.renderBikeList();
                     this.renderMapMarkers();
                     this.hideStatus();
                     
-                    console.log(`Loaded ${this.bikes.length} bike predictions`);
-                } catch (error) {
-                    console.error('Error fetching predictions:', error);
-                    this.showStatus('Failed to load bike data. Make sure your backend is running on port 8000.', 'error');
-                }
+                    console.log(`Loaded ${this.bikes.length} demo bike records`);
+                }, 1000);
+            }
+            
+            applyFilters() {
+                this.filteredBikes = this.bikes.filter(bike => {
+                    // Risk filter
+                    if (this.filters.risk !== 'all') {
+                        const riskLevel = this.getRiskLevel(bike.failure_probability);
+                        if (riskLevel !== this.filters.risk) return false;
+                    }
+                    
+                    // Model filter
+                    if (this.filters.model !== 'all' && bike.model !== this.filters.model) {
+                        return false;
+                    }
+                    
+                    return true;
+                });
+                
+                this.renderBikeList();
+                this.renderMapMarkers();
+            }
+            
+            getRiskLevel(probability) {
+                if (probability > 0.7) return 'high';
+                if (probability > 0.4) return 'medium';
+                return 'low';
+            }
+            
+            updateStats() {
+                document.getElementById('totalBikes').textContent = this.bikes.length;
+                
+                const highRiskCount = this.bikes.filter(bike => bike.failure_probability > 0.7).length;
+                const mediumRiskCount = this.bikes.filter(bike => bike.failure_probability > 0.4 && bike.failure_probability <= 0.7).length;
+                
+                document.getElementById('highRiskBikes').textContent = highRiskCount;
+                document.getElementById('mediumRiskBikes').textContent = mediumRiskCount;
             }
             
             renderBikeList() {
                 const container = document.getElementById('bikeListContainer');
                 
-                if (this.bikes.length === 0) {
-                    container.innerHTML = '<div class="loading">No bike predictions available. Make sure the ML model is trained.</div>';
+                if (this.filteredBikes.length === 0) {
+                    container.innerHTML = '<div class="loading">No bikes match the current filters.</div>';
                     return;
                 }
                 
-                container.innerHTML = this.bikes.map(bike => `
+                // Sort bikes by failure probability (highest first)
+                const sortedBikes = [...this.filteredBikes].sort((a, b) => b.failure_probability - a.failure_probability);
+                
+                container.innerHTML = sortedBikes.map(bike => `
                     <div 
                         class="bike-item ${this.selectedBikes.has(bike.bike_id) ? 'selected' : ''}"
                         data-bike-id="${bike.bike_id}"
@@ -295,8 +676,38 @@
                             </span>
                         </div>
                         <div class="bike-details">
-                            <span>${bike.total_km.toFixed(1)} km total</span>
+                            <span>${bike.total_km.toFixed(1)} km</span>
                             <span>${bike.days_since_last_service} days since service</span>
+                        </div>
+                        <div class="bike-details">
+                            <span>${bike.model}</span>
+                            <span>Last: ${bike.last_service}</span>
+                        </div>
+                        
+                        <div class="component-risks">
+                            <div class="component-risk">
+                                <span>Tire:</span>
+                                <span>${(bike.component_risks.tire * 100).toFixed(0)}%</span>
+                            </div>
+                            <div class="risk-bar">
+                                <div class="risk-fill" style="width: ${bike.component_risks.tire * 100}%; background-color: ${this.getRiskColor(bike.component_risks.tire)}"></div>
+                            </div>
+                            
+                            <div class="component-risk">
+                                <span>Brake:</span>
+                                <span>${(bike.component_risks.brake * 100).toFixed(0)}%</span>
+                            </div>
+                            <div class="risk-bar">
+                                <div class="risk-fill" style="width: ${bike.component_risks.brake * 100}%; background-color: ${this.getRiskColor(bike.component_risks.brake)}"></div>
+                            </div>
+                            
+                            <div class="component-risk">
+                                <span>Chain:</span>
+                                <span>${(bike.component_risks.chain * 100).toFixed(0)}%</span>
+                            </div>
+                            <div class="risk-bar">
+                                <div class="risk-fill" style="width: ${bike.component_risks.chain * 100}%; background-color: ${this.getRiskColor(bike.component_risks.chain)}"></div>
+                            </div>
                         </div>
                     </div>
                 `).join('');
@@ -318,17 +729,13 @@
                 this.markers = [];
                 
                 // Add markers for each bike
-                this.bikes.forEach((bike, index) => {
-                    // Generate mock coordinates around NYC for each bike
-                    const longitude = -74.006 + (bike.bike_id % 10) * 0.01;
-                    const latitude = 40.7128 + (Math.floor(bike.bike_id / 10) % 10) * 0.01;
-                    
+                this.filteredBikes.forEach(bike => {
                     // Create marker element
                     const el = document.createElement('div');
                     el.className = 'marker';
                     el.style.backgroundColor = this.getRiskColor(bike.failure_probability);
-                    el.style.width = '15px';
-                    el.style.height = '15px';
+                    el.style.width = '20px';
+                    el.style.height = '20px';
                     el.style.borderRadius = '50%';
                     el.style.border = '2px solid white';
                     el.style.cursor = 'pointer';
@@ -336,8 +743,8 @@
                     
                     if (this.selectedBikes.has(bike.bike_id)) {
                         el.style.border = '3px solid #007bff';
-                        el.style.width = '18px';
-                        el.style.height = '18px';
+                        el.style.width = '24px';
+                        el.style.height = '24px';
                     }
                     
                     // Add click handler
@@ -345,21 +752,27 @@
                         this.toggleSelection(bike.bike_id);
                     });
                     
-                    // Create popup
+                    // Create popup with component risks
                     const popup = new mapboxgl.Popup({ offset: 25 })
                         .setHTML(`
-                            <div style="padding: 8px;">
+                            <div style="padding: 8px; min-width: 200px;">
                                 <strong>Bike #${bike.bike_id}</strong><br>
-                                <span style="color: ${this.getRiskColor(bike.failure_probability)}">
+                                <span style="color: ${this.getRiskColor(bike.failure_probability)}; font-weight: bold;">
                                     ${(bike.failure_probability * 100).toFixed(1)}% failure risk
                                 </span><br>
                                 ${bike.total_km.toFixed(1)} km total<br>
-                                ${bike.days_since_last_service} days since service
+                                ${bike.days_since_last_service} days since service<br>
+                                Model: ${bike.model}<br>
+                                Last service: ${bike.last_service}<br><br>
+                                <strong>Component Risks:</strong><br>
+                                Tire: ${(bike.component_risks.tire * 100).toFixed(0)}%<br>
+                                Brake: ${(bike.component_risks.brake * 100).toFixed(0)}%<br>
+                                Chain: ${(bike.component_risks.chain * 100).toFixed(0)}%
                             </div>
                         `);
                     
                     const marker = new mapboxgl.Marker(el)
-                        .setLngLat([longitude, latitude])
+                        .setLngLat([bike.lng, bike.lat])
                         .setPopup(popup)
                         .addTo(this.map);
                         
@@ -383,6 +796,10 @@
                 button.textContent = `🗺️ Plan Route (${this.selectedBikes.size} selected)`;
                 button.disabled = this.selectedBikes.size === 0;
                 
+                // Show/hide clear route button
+                const clearButton = document.getElementById('clearRouteButton');
+                clearButton.style.display = this.route ? 'block' : 'none';
+                
                 // Re-render bike list and markers
                 this.renderBikeList();
                 if (this.map) {
@@ -396,20 +813,54 @@
                 this.showStatus('Planning optimal route...', 'loading');
                 
                 try {
-                    const selectedBikeIds = Array.from(this.selectedBikes);
-                    const response = await axios.post(`${API_BASE_URL}/plan_route`, selectedBikeIds);
-                    
-                    if (response.data && this.map) {
-                        this.addRouteToMap(response.data);
+                    // Use demo route data instead of API call
+                    setTimeout(() => {
+                        // Filter coordinates for selected bikes only
+                        const selectedBikeIds = Array.from(this.selectedBikes);
+                        const selectedBikes = this.bikes.filter(bike => selectedBikeIds.includes(bike.bike_id));
+                        
+                        // Create a route that visits selected bikes in risk order (highest first)
+                        const sortedBikes = [...selectedBikes].sort((a, b) => b.failure_probability - a.failure_probability);
+                        const routeCoordinates = sortedBikes.map(bike => [bike.lng, bike.lat]);
+                        
+                        // Create a GeoJSON line string for the route
+                        const routeGeoJSON = {
+                            type: 'LineString',
+                            coordinates: routeCoordinates
+                        };
+                        
+                        this.route = routeGeoJSON;
+                        this.addRouteToMap(routeGeoJSON);
                         this.showStatus(`Route planned for ${selectedBikeIds.length} bikes`, 'success');
+                        
+                        // Show route information
+                        this.showRouteInfo(sortedBikes);
+                        
+                        this.updateUI();
+                        
                         setTimeout(() => this.hideStatus(), 3000);
-                    } else {
-                        this.showStatus('Route planning failed', 'error');
-                    }
+                    }, 1000);
+                    
                 } catch (error) {
                     console.error('Error planning route:', error);
-                    this.showStatus('Route planning failed. Check if Mapbox token is configured in backend.', 'error');
+                    this.showStatus('Route planning failed.', 'error');
                 }
+            }
+            
+            clearRoute() {
+                if (!this.map) return;
+                
+                // Remove existing route
+                if (this.map.getSource('route')) {
+                    this.map.removeLayer('route');
+                    this.map.removeSource('route');
+                }
+                
+                // Hide route info
+                document.getElementById('routeInfo').style.display = 'none';
+                
+                this.route = null;
+                this.updateUI();
             }
             
             addRouteToMap(routeGeometry) {
@@ -441,7 +892,8 @@
                     },
                     paint: {
                         'line-color': '#007cbf',
-                        'line-width': 4
+                        'line-width': 4,
+                        'line-dasharray': [2, 2]
                     }
                 });
                 
@@ -452,6 +904,38 @@
                 }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
                 
                 this.map.fitBounds(bounds, { padding: 50 });
+            }
+            
+            showRouteInfo(bikesOnRoute) {
+                // Calculate approximate distance (simplified)
+                let totalDistance = 0;
+                for (let i = 0; i < bikesOnRoute.length - 1; i++) {
+                    const bike1 = bikesOnRoute[i];
+                    const bike2 = bikesOnRoute[i + 1];
+                    
+                    // Simple distance calculation (not accurate but good for demo)
+                    const latDiff = bike2.lat - bike1.lat;
+                    const lngDiff = bike2.lng - bike1.lng;
+                    totalDistance += Math.sqrt(latDiff * latDiff + lngDiff * lngDiff) * 111; // Convert to km
+                }
+                
+                // Estimate time (15 minutes per bike + travel time)
+                const serviceTimePerBike = 15; // minutes
+                const averageSpeed = 20; // km/h
+                const totalTimeMinutes = (bikesOnRoute.length * serviceTimePerBike) + (totalDistance / averageSpeed * 60);
+                
+                const hours = Math.floor(totalTimeMinutes / 60);
+                const minutes = Math.round(totalTimeMinutes % 60);
+                
+                // Count high risk bikes (failure probability > 70%)
+                const highRiskBikes = bikesOnRoute.filter(bike => bike.failure_probability > 0.7).length;
+                
+                // Update and show route info panel
+                document.getElementById('routeDistance').textContent = `${totalDistance.toFixed(1)} km`;
+                document.getElementById('routeTime').textContent = `${hours}h ${minutes}m`;
+                document.getElementById('routeBikes').textContent = bikesOnRoute.length;
+                document.getElementById('routeHighRisk').textContent = highRiskBikes;
+                document.getElementById('routeInfo').style.display = 'block';
             }
             
             getRiskColor(probability) {
